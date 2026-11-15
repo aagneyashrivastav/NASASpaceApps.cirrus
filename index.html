@@ -13,8 +13,11 @@
 <style>
   :root {
     --font: "Orbitron", "Segoe UI", Arial, sans-serif;
-    /* Earth's size: diameter as a share of the screen width. Tweak this if Earth looks too big or small. */
-    --earth-size: 140vw;
+    /* EARTH TUNING:
+       --earth-d      : how wide the visible Earth globe is. Bigger = bigger Earth.
+       --earth-center : distance of Earth's centre below the top of the sky. Smaller = Earth sits higher. */
+    --earth-d: 125vw;
+    --earth-center: calc(50% + 62.5vw);
   }
   * { box-sizing: border-box; }
   html, body { margin:0; min-height:100%; }
@@ -22,14 +25,17 @@
     font-family: var(--font); color:#eaf2ff;
     background-color:#000;
     /* Background image: file must be in the same GitHub repo (name is case-sensitive) */
-    background-image: url("https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/StarBackground.png");
+    background-image: linear-gradient(rgba(0,0,0,.12), rgba(0,0,0,.12)),
+      url("https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/StarBackground.png");
     background-size: cover; background-position: center; background-attachment: fixed;
-    overflow-x:hidden;
+    /* fit exactly one screen: no scrolling, no empty space at the bottom */
+    height:100vh; height:100dvh; overflow:hidden;
+    display:flex; flex-direction:column;
   }
 
   /* ---------- header: darker, translucent band ---------- */
   header {
-    position:relative; z-index:3; text-align:center; padding:22px 16px 18px;
+    flex:0 0 auto; position:relative; z-index:3; text-align:center; padding:22px 16px 18px;
     background: rgba(3,5,14,.62);
     backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
     border-bottom: 1px solid rgba(140,180,255,.25);
@@ -38,48 +44,54 @@
   header h1 {
     margin:0; font-weight:700; text-transform:uppercase;
     font-size:clamp(18px,3.6vw,44px); letter-spacing:.14em;
-    text-shadow: 0 0 14px rgba(120,170,255,.55);
   }
   header p { margin:8px 0 0; font-weight:500; font-size:clamp(11px,1.5vw,17px); letter-spacing:.12em; opacity:.8; }
 
   /* ---------- the sky ---------- */
-  .space { position:relative; z-index:1; height:88vh; min-height:620px; }
+  .space { position:relative; z-index:1; flex:1 1 auto; min-height:0; }
 
   /* Earth: huge, cropped by the bottom-left corner, like the sketch */
   .earth-wrap { position:absolute; inset:0; overflow:hidden; pointer-events:none; }
   #earth {
     position:absolute; margin:0;
-    width: var(--earth-size);
-    left: calc(7.5vw - var(--earth-size) / 2);   /* centre sits just inside the left edge */
-    top: 50%;                                    /* top of the globe starts halfway down the sky */
+    width: var(--earth-d); aspect-ratio:1 / 1;
+    left: 7.5vw;                      /* centre of Earth, from the left edge */
+    top: var(--earth-center);
+    transform: translate(-50%,-50%);
   }
   #earth model-viewer {
-    filter: drop-shadow(0 0 28px rgba(70,140,255,.85));  /* blue glow */
+    position:absolute; left:50%; top:50%;
+    width: calc(var(--earth-d) / 1.232); height: calc(var(--earth-d) / 1.232);
+    transform: translate(-50%,-50%) scale(1.4);
+    /* GLOW TUNING (Earth): follows the globe's real edge. Last number = strength (0 to 1). */
+    filter: drop-shadow(0 0 14px rgba(70,140,255,.4));
   }
   #earth-label {
     position:absolute; left:10%; top:84%; z-index:2; margin:0;
     font-size:clamp(14px,1.8vw,26px); letter-spacing:.14em;
-    text-shadow: 0 0 12px rgba(70,140,255,.9);
   }
 
   /* the small worlds: left/top are the CENTRE of each world (from the sketch) */
   .body { position:absolute; margin:0; text-align:center; transform:translate(-50%,-50%); z-index:2; }
   .body figcaption { margin-top:2px; font-size:clamp(10px,1.1vw,16px); letter-spacing:.12em; }
 
-  #eros  { left:59%;   top:12%; width:clamp(70px,10vw,170px); }
-  #ceres { left:80.5%; top:9%;  width:clamp(60px,8.5vw,150px); }
-  #moon  { left:42.5%; top:33%; width:clamp(100px,15vw,260px); }
-  #mars  { left:76%;   top:57%; width:clamp(90px,13.5vw,240px); }
+  /* sizes: Earth > Mars > Moon > Ceres > Eros (not to scale, but in the right order) */
+  /* each width is the viewer box; the planet fills ~88% of it (set by the script below) */
+  #eros  { left:59%;   top:12%; width:clamp(65px,8vw,150px); }
+  #ceres { left:80.5%; top:17%; width:clamp(66px,6.8vw,136px); }
+  #moon  { left:39%; top:27%; width:clamp(120px,13vw,260px); }
+  #mars  { left:80%;   top:62%; width:clamp(190px,20vw,400px); }
 
   /* ---------- the 3D models ---------- */
   model-viewer {
-    width:100%; aspect-ratio:1 / 1; display:block;
+    width:100%; height:auto; aspect-ratio:1 / 1; display:block;   /* height:auto makes the box truly square */
     background:transparent; --poster-color:transparent;
     transition: transform .3s ease, filter .3s ease;
-    filter: drop-shadow(0 0 10px rgba(255,255,255,.55));
+    /* GLOW TUNING (resting glow): the first number is the blur, the last is the strength (0 to 1) */
+    filter: drop-shadow(0 0 6px rgba(255,255,255,.3));
   }
 
-  /* clickable worlds: glow + grow on hover or keyboard focus */
+  /* clickable worlds: stronger glow + grow on hover or keyboard focus */
   .clickable { cursor:pointer; }
   .clickable model-viewer { cursor:pointer; }
   .clickable:hover model-viewer, .clickable:focus-within model-viewer {
@@ -87,17 +99,24 @@
   }
   .clickable:focus-visible { outline:2px solid #8fb8ff; outline-offset:6px; border-radius:8px; }
   /* Mars glows reddish-orange */
-  #mars model-viewer { filter: drop-shadow(0 0 10px rgba(255,122,60,.6)); }
+  #mars model-viewer { filter: drop-shadow(0 0 6px rgba(255,122,60,.35)); }
   #mars:hover model-viewer, #mars:focus-within model-viewer { filter: drop-shadow(0 0 26px rgba(255,122,60,1)); }
+  /* Earth is not clickable: it keeps its own blue glow from the #earth rule above */
 
+  #hint:empty { display:none; }
   #hint { position:relative; z-index:3; text-align:center; padding:8px 16px 28px; font-size:clamp(11px,1.4vw,16px); letter-spacing:.1em; opacity:.85; }
 
   /* phones: stack the worlds in a column, Earth as a cropped dome at the bottom */
   @media (max-width:700px) {
+    body { height:auto; overflow:auto; display:block; }   /* phones: stacked layout scrolls */
     .space { height:auto; display:flex; flex-direction:column; align-items:center; gap:18px; padding:20px 0 60vw; overflow:hidden; }
-    .body { position:static; transform:none; width:clamp(130px,50vw,220px) !important; }
-    :root { --earth-size: 170vw; }
-    #earth { left:calc(50vw - var(--earth-size) / 2); top:auto; bottom:-110vw; }
+    .body { position:static; transform:none; }
+    #eros  { width:30vw; }
+    #ceres { width:34vw; }
+    #moon  { width:52vw; }
+    #mars  { width:70vw; }
+    :root { --earth-d: 150vw; --earth-center: calc(100% + 20vw); }
+    #earth { left:50vw; }
     #earth-label { left:50%; top:auto; bottom:12vw; transform:translateX(-50%); }
   }
 </style>
@@ -114,7 +133,7 @@
   <div class="earth-wrap">
     <figure id="earth">
       <model-viewer alt="A slowly spinning model of Earth" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Earth_1_12756.glb"
-        auto-rotate rotation-per-second="6deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+        data-fit="0.88" auto-rotate rotation-per-second="1.5deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="6.4"></model-viewer>
     </figure>
   </div>
   <p id="earth-label">Earth</p>
@@ -122,30 +141,30 @@
   <!-- File names must match the repo exactly (case-sensitive). Change @main if your branch has another name. -->
   <figure class="body clickable" id="eros"  data-world="eros"  tabindex="0" role="button" aria-label="Eros. Open a postcard.">
     <model-viewer alt="A spinning model of the asteroid Eros" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Eros_1_10.glb"
-      auto-rotate rotation-per-second="28deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+      auto-rotate rotation-per-second="7deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="4.4"></model-viewer>
     <figcaption>Eros</figcaption>
   </figure>
 
   <figure class="body clickable" id="ceres" data-world="ceres" tabindex="0" role="button" aria-label="Ceres. Open a postcard.">
-    <model-viewer alt="A spinning model of the dwarf planet Ceres" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Ceres_1_1000.glb"
-      auto-rotate rotation-per-second="17deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <model-viewer alt="A spinning model of the dwarf planet Ceres" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Ceres_1_1000.glb" data-fit="0.85"
+      auto-rotate rotation-per-second="4.25deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="4.1"></model-viewer>
     <figcaption>Ceres</figcaption>
   </figure>
 
   <figure class="body clickable" id="moon"  data-world="moon"  tabindex="0" role="button" aria-label="The Moon. Open a postcard.">
-    <model-viewer alt="A spinning model of the Moon" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/moon_small.glb"
-      auto-rotate rotation-per-second="9deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <model-viewer alt="A spinning model of the Moon" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/moon_small.glb" data-fit="0.88"
+      auto-rotate rotation-per-second="2.25deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="4.7"></model-viewer>
     <figcaption>The Moon</figcaption>
   </figure>
 
   <figure class="body clickable" id="mars"  data-world="mars"  tabindex="0" role="button" aria-label="Mars. Open a postcard.">
-    <model-viewer alt="A spinning model of Mars" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/24881_Mars_1_6792.glb"
-      auto-rotate rotation-per-second="13deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <model-viewer alt="A spinning model of Mars" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/24881_Mars_1_6792.glb" data-fit="0.88"
+      auto-rotate rotation-per-second="3.25deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="5.1"></model-viewer>
     <figcaption>Mars</figcaption>
   </figure>
 </main>
 
-<div id="hint" aria-live="polite">Click a world to receive a postcard.</div>
+<div id="hint" aria-live="polite"></div>
 
 <script>
   // ---------- reduced motion: stop the spin ----------
@@ -153,10 +172,33 @@
     document.querySelectorAll('model-viewer').forEach(m => m.removeAttribute('auto-rotate'));
   }
 
+  // ---------- fit each sphere to its box ----------
+  // Works out the camera distance so the planet fills data-fit (e.g. 0.88) of the viewer box.
+  document.querySelectorAll('model-viewer[data-fit]').forEach(m => {
+    m.addEventListener('load', () => {
+      const fill = parseFloat(m.dataset.fit) || 0.88;
+      const dim = m.getDimensions();
+      const R = Math.max(dim.x, dim.y, dim.z) / 2;
+      const fov = (m.getFieldOfView ? m.getFieldOfView() : 45) * Math.PI / 180;
+      const d = R / Math.sin(Math.atan(fill * Math.tan(fov / 2)));
+      m.minCameraOrbit = 'auto auto ' + (d * 0.5) + 'm';
+      m.cameraOrbit = '0deg 80deg ' + d + 'm';
+    });
+  });
+
+  // ---------- load problems: fall back to plain lighting and tell us what failed ----------
+  document.querySelectorAll('model-viewer').forEach(m => {
+    m.addEventListener('error', e => {
+      console.error('Model problem:', m.alt, e.detail);
+      if (m.getAttribute('environment-image') !== 'neutral') m.setAttribute('environment-image', 'neutral');
+    });
+  });
+
   // ---------- clicks (placeholder: the postcard popup plugs in here next) ----------
   function openWorld(world) {
     console.log('Clicked:', world);
-    document.getElementById('hint').textContent = 'You clicked ' + world + ' (postcard popup goes here).';
+    const hint = document.getElementById('hint');
+    if (hint) hint.textContent = 'You clicked ' + world + ' (postcard popup goes here).';
   }
   document.querySelectorAll('.clickable').forEach(el => {
     el.addEventListener('click', () => openWorld(el.dataset.world));
