@@ -146,6 +146,41 @@
   .pc-links a { font:700 18px "Gaegu","Comic Sans MS",cursive; color:#583326; background:#f6ecd6; border:2px solid #583326;
     border-radius:6px; padding:6px 16px; text-decoration:none; }
   .pc-links a:hover, .pc-links a:focus-visible { background:#fff8e6; outline:3px solid #fff; }
+
+  /* ---------- progress tracker (bottom bar) ---------- */
+  #tracker { position:fixed; left:0; right:0; bottom:0; z-index:20; max-height:34vh; overflow-y:auto;
+    padding:10px 16px 14px; background:rgba(3,5,14,.72); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    border-top:1px solid rgba(140,180,255,.25);
+    transform:translateY(105%); visibility:hidden; transition:transform .4s ease, visibility .4s; }
+  #tracker.show { transform:none; visibility:visible; }
+  .tr-top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:8px; }
+  .tr-total { font:700 clamp(11px,1.2vw,15px) var(--font); letter-spacing:.12em; }
+  #tr-toggle { font:500 11px var(--font); letter-spacing:.1em; color:#eaf2ff; background:transparent;
+    border:1px solid rgba(140,180,255,.4); border-radius:6px; padding:4px 12px; cursor:pointer; }
+  #tr-toggle:hover, #tr-toggle:focus-visible { background:rgba(255,255,255,.14); outline:2px solid #8fb8ff; }
+  #tracker.collapsed .tr-cols { display:none; }
+  .tr-cols { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:14px; align-items:start; }
+  .tr-col[hidden] { display:none; }
+  .tr-col h3 { margin:0 0 6px; font:500 clamp(10px,1vw,13px) var(--font); letter-spacing:.14em; text-transform:uppercase; opacity:.75; }
+  .tr-list { display:flex; flex-wrap:wrap; gap:6px; }
+  .tr-tile { font-family:var(--font); color:#eaf2ff; text-align:left; cursor:pointer;
+    background:rgba(255,255,255,.06); border:1px solid rgba(140,180,255,.3); border-radius:8px;
+    padding:6px 10px; animation:tr-pop .45s ease; }
+  .tr-tile:hover, .tr-tile:focus-visible { background:rgba(255,255,255,.14); outline:2px solid #8fb8ff; }
+  .tr-name { display:block; font-weight:700; font-size:clamp(10px,1.05vw,14px); letter-spacing:.06em; }
+  .tr-row { display:flex; align-items:center; gap:5px; margin-top:5px; }
+  .tr-pip { width:12px; height:12px; border-radius:50%; border:2px solid rgba(234,242,255,.6); }
+  .tr-pip.on { background:#8fd0ff; border-color:#8fd0ff; box-shadow:0 0 8px rgba(143,208,255,.8); animation:tr-fill .4s ease; }
+  .tr-count { margin-left:4px; font-size:10px; letter-spacing:.08em; opacity:.8; }
+  .tr-tile.done { border-color:#ffd36e; }
+  .tr-tile.done .tr-pip.on { background:#ffd36e; border-color:#ffd36e; box-shadow:0 0 8px rgba(255,211,110,.9); }
+  @keyframes tr-pop { from { opacity:0; transform:translateY(10px) scale(.9); } to { opacity:1; transform:none; } }
+  @keyframes tr-fill { from { transform:scale(.3); } to { transform:scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .tr-tile, .tr-pip.on { animation:none; } #tracker { transition:none; } }
+  @media (max-width:700px) {
+    .tr-cols { grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)); }
+    body.has-tracker { padding-bottom:34vh; }
+  }
 </style>
 </head>
 <body>
@@ -192,6 +227,14 @@
 </main>
 
 <div id="hint" aria-live="polite"></div>
+
+<aside id="tracker" aria-label="Postcard progress">
+  <div class="tr-top">
+    <span id="tr-total" class="tr-total"></span>
+    <button id="tr-toggle" type="button" aria-expanded="true">Hide</button>
+  </div>
+  <div id="tr-cols" class="tr-cols"></div>
+</aside>
 
 <div id="postcard-overlay" role="dialog" aria-modal="true" aria-label="Postcard" aria-hidden="true">
   <div class="pc-wrap">
@@ -276,8 +319,9 @@
       date: (r[3] || '').trim(), name: (r[4] || '').trim(), message: (r[5] || '').trim(), image: (r[6] || '').trim(), links: (r[7] || '').trim()
     })).filter(c => /^\d/.test(c.id));          // rows whose id does not start with a number (like the header) are skipped
   }
-  function parseId(id) {                          // "1-2-3" or "123" -> world 1, machine 2, card 3
+  function parseId(id) {                          // "10203" -> world 1, machine 2, card 03; "1-2-3" and "123" still work
     if (/[-._ ]/.test(id)) { const p = id.split(/[-._ ]+/); return { world: p[0], machine: p[1] || '', n: p[2] || '' }; }
+    if (id.length >= 5) return { world: id[0], machine: String(parseInt(id.slice(1, 3), 10)), n: id.slice(3) };
     return { world: id[0], machine: id[1] || '', n: id.slice(2) };
   }
   let CARDS = null;
@@ -371,6 +415,69 @@
     overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true');
     if (lastFocus) lastFocus.focus();
   }
+  // ---------- progress tracker ----------
+  const WORLD_TITLES = { '1': 'The Moon', '2': 'Mars', '3': 'Ceres', '4': 'Eros' };
+  const seen = {};     // machine key -> card ids received (sorted)
+  const tiles = {};    // machine key -> its tile parts
+  const cycle = {};    // machine key -> which seen card a name-click shows next
+
+  Object.keys(WORLD_TITLES).forEach(w => {      // one hidden column per world, in order
+    const col = document.createElement('section');
+    col.className = 'tr-col'; col.id = 'tr-col-' + w; col.hidden = true;
+    const h = document.createElement('h3'); h.textContent = WORLD_TITLES[w];
+    const list = document.createElement('div'); list.className = 'tr-list';
+    col.append(h, list); $('tr-cols').append(col);
+  });
+
+  function machineKey(c) { const p = parseId(c.id); return p.world + '-' + p.machine; }
+
+  function updateTotals() {
+    const got = Object.values(seen).reduce((n, a) => n + a.length, 0);
+    const all = CARDS.filter(c => WORLD_TITLES[parseId(c.id).world]).length;
+    $('tr-total').textContent = 'Postcards found: ' + got + ' / ' + all;
+  }
+
+  function buildTile(key, world, name, total) {
+    const tile = document.createElement('button');
+    tile.type = 'button'; tile.className = 'tr-tile';
+    const nm = document.createElement('span'); nm.className = 'tr-name'; nm.textContent = name;
+    const row = document.createElement('span'); row.className = 'tr-row';
+    const pips = [];
+    for (let i = 0; i < total; i++) { const d = document.createElement('span'); d.className = 'tr-pip'; pips.push(d); row.append(d); }
+    const count = document.createElement('span'); count.className = 'tr-count'; row.append(count);
+    tile.append(nm, row);
+    tile.addEventListener('click', () => {         // click the name: re-read a card you already have
+      const list = seen[key];
+      const i = cycle[key] = ((cycle[key] ?? -1) + 1) % list.length;
+      const card = CARDS.find(x => x.id === list[i]);
+      if (card) showCard(card);
+    });
+    const col = $('tr-col-' + world);
+    col.hidden = false; col.querySelector('.tr-list').append(tile);
+    return { tile, pips, count, name };
+  }
+
+  function markSeen(c) {
+    const key = machineKey(c), p = parseId(c.id);
+    const list = (seen[key] = seen[key] || []);
+    if (list.includes(c.id)) return;
+    list.push(c.id); list.sort();
+    const total = CARDS.filter(x => machineKey(x) === key).length;
+    const t = tiles[key] || (tiles[key] = buildTile(key, p.world, c.name, total));
+    t.pips.forEach((pip, i) => pip.classList.toggle('on', i < list.length));
+    t.count.textContent = list.length + '/' + total;
+    t.tile.classList.toggle('done', list.length >= total);
+    t.tile.setAttribute('aria-label', t.name + ': ' + list.length + ' of ' + total + ' postcards found. Select to read again.');
+    $('tracker').classList.add('show'); document.body.classList.add('has-tracker');
+    updateTotals();
+  }
+
+  $('tr-toggle').addEventListener('click', () => {
+    const closed = $('tracker').classList.toggle('collapsed');
+    $('tr-toggle').textContent = closed ? 'Show' : 'Hide';
+    $('tr-toggle').setAttribute('aria-expanded', String(!closed));
+  });
+
   async function openWorld(world) {
     if (CARDS === null) CARDS = await loadCards();
     const card = CARDS.length ? pickCard(world) : null;
@@ -379,6 +486,7 @@
       return;
     }
     showCard(card);
+    markSeen(card);
   }
   $('pc-done').addEventListener('click', closeCard);
   overlay.addEventListener('click', e => { if (e.target === overlay) closeCard(); });
