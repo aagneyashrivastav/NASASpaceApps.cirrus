@@ -181,6 +181,32 @@
     .tr-cols { grid-auto-flow:row; grid-template-columns:repeat(2,minmax(0,1fr)); }
     body.has-tracker { padding-bottom:34vh; }
   }
+
+  /* ---------- welcome window ---------- */
+  #welcome { position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;
+    background:rgba(0,0,0,.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    opacity:0; visibility:hidden; transition:opacity .3s, visibility .3s; }
+  #welcome.open { opacity:1; visibility:visible; }
+  .wl-panel { width:min(640px,100%); max-height:92vh; overflow-y:auto; padding:clamp(18px,3.2vw,34px);
+    background:rgba(0,0,0,.76); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(140,180,255,.35); border-radius:14px; box-shadow:0 18px 60px rgba(0,0,0,.7);
+    transform:translateY(18px) scale(.97); transition:transform .35s ease; }
+  #welcome.open .wl-panel { transform:none; }
+  .wl-panel h2 { margin:0 0 6px; font:700 clamp(16px,2.6vw,26px) var(--font); letter-spacing:.12em; text-transform:uppercase; }
+  .wl-sub { margin:0 0 14px; font:500 clamp(10px,1.2vw,13px) var(--font); letter-spacing:.12em; opacity:.75; }
+  .wl-panel p { margin:0 0 14px; font:400 clamp(14px,1.5vw,16px)/1.55 "Segoe UI",Arial,sans-serif; color:#dce8ff; }
+  .wl-steps { list-style:none; margin:0 0 18px; padding:0; display:grid; gap:10px; }
+  .wl-steps li { display:flex; gap:12px; align-items:flex-start; font:400 clamp(13px,1.4vw,15px)/1.5 "Segoe UI",Arial,sans-serif; color:#dce8ff; }
+  .wl-steps b { color:#fff; }
+  .wl-num { flex:0 0 auto; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font:700 12px var(--font); color:#000; background:#8fd0ff; }
+  #wl-start { display:block; margin:6px auto 0; font:700 clamp(12px,1.3vw,15px) var(--font); letter-spacing:.14em; text-transform:uppercase;
+    color:#000; background:#8fd0ff; border:0; border-radius:8px; padding:12px 28px; cursor:pointer; }
+  #wl-start:hover, #wl-start:focus-visible { background:#fff; outline:3px solid #8fb8ff; outline-offset:2px; }
+  #help-btn { position:absolute; top:14px; right:14px; width:34px; height:34px; border-radius:50%; cursor:pointer;
+    font:700 16px var(--font); color:#eaf2ff; background:rgba(0,0,0,.4); border:1px solid rgba(140,180,255,.45); }
+  #help-btn:hover, #help-btn:focus-visible { background:rgba(255,255,255,.18); outline:2px solid #8fb8ff; }
+  @media (prefers-reduced-motion: reduce) { #welcome, .wl-panel { transition:none; } }
 </style>
 </head>
 <body>
@@ -188,6 +214,7 @@
 <header>
   <h1>Abandoned but not forgotten</h1>
   <p>They finished their missions. Earth is still listening.</p>
+  <button id="help-btn" type="button" aria-label="How this website works" title="How this website works">?</button>
 </header>
 
 <main class="space">
@@ -227,6 +254,21 @@
 </main>
 
 <div id="hint" aria-live="polite"></div>
+
+<div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wl-title" aria-describedby="wl-intro" aria-hidden="true">
+  <div class="wl-panel">
+    <h2 id="wl-title">Abandoned but not forgotten</h2>
+    <p class="wl-sub">POSTCARDS FROM THE SOLAR SYSTEM</p>
+    <p id="wl-intro">Since the 1960s, NASA has left robots behind on the Moon, on Mars, and out in deep space. Their missions are over, but they still have stories to tell. Each one has written postcards to send back to Earth.</p>
+    <ol class="wl-steps">
+      <li><span class="wl-num">1</span><span><b>Pick a world.</b> Click the Moon, Mars, Ceres, or Eros to get a postcard from one of the machines left there.</span></li>
+      <li><span class="wl-num">2</span><span><b>Read it.</b> Each postcard is written by the machine itself. Press <b>Done reading</b> to go back to space.</span></li>
+      <li><span class="wl-num">3</span><span><b>Look into it.</b> Use the buttons under a postcard to open real NASA pages, photos, and data.</span></li>
+      <li><span class="wl-num">4</span><span><b>Collect them all.</b> A tracker at the bottom shows which machines you have heard from. Fill all the dots to collect every postcard, and click a name to read one again.</span></li>
+    </ol>
+    <button id="wl-start" type="button">Start exploring</button>
+  </div>
+</div>
 
 <aside id="tracker" aria-label="Postcard progress">
   <div class="tr-top">
@@ -507,6 +549,28 @@
     el.addEventListener('click', () => openWorld(el.dataset.world));
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openWorld(el.dataset.world); } });
   });
+
+  // ---------- welcome window ----------
+  const welcome = $('welcome');
+  let welcomeFocus = null;
+  function openWelcome() {
+    welcomeFocus = document.activeElement;
+    welcome.classList.add('open'); welcome.setAttribute('aria-hidden', 'false');
+    $('wl-start').focus();
+  }
+  function closeWelcome() {
+    welcome.classList.remove('open'); welcome.setAttribute('aria-hidden', 'true');
+    if (welcomeFocus && welcomeFocus !== document.body) welcomeFocus.focus();
+  }
+  $('wl-start').addEventListener('click', closeWelcome);
+  welcome.addEventListener('click', e => { if (e.target === welcome) closeWelcome(); });
+  $('help-btn').addEventListener('click', openWelcome);
+  document.addEventListener('keydown', e => {
+    if (!welcome.classList.contains('open')) return;
+    if (e.key === 'Escape') closeWelcome();
+    if (e.key === 'Tab') { e.preventDefault(); $('wl-start').focus(); }
+  });
+  openWelcome();   // show on every visit
 </script>
 </body>
 </html>
