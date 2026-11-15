@@ -7,7 +7,7 @@
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Gaegu:wght@400;700&display=swap" rel="stylesheet">
 <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
 
 <style>
@@ -119,6 +119,26 @@
     #earth { left:50vw; }
     #earth-label { left:50%; top:auto; bottom:12vw; transform:translateX(-50%); }
   }
+  /* ---------- postcard popup ---------- */
+  #postcard-overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center;
+    padding:16px; background:rgba(3,5,15,.8); opacity:0; visibility:hidden; transition:opacity .25s, visibility .25s; }
+  #postcard-overlay.open { opacity:1; visibility:visible; }
+  .pc-wrap { width:min(900px,100%); display:flex; flex-direction:column; align-items:center; gap:16px;
+    transform:translateY(24px) scale(.96); transition:transform .3s ease; }
+  #postcard-overlay.open .pc-wrap { transform:none; }
+  .postcard { position:relative; width:100%; aspect-ratio:1057 / 693; box-shadow:0 14px 50px #000;
+    color:#583326; font-family:"Gaegu","Comic Sans MS",cursive; --fs:30px; }
+  .pc-bg { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  .pc-line { position:absolute; left:8.3%; max-width:38%; font-size:var(--fs); line-height:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #pc-location { top:8.4%; }  #pc-planet { top:14.6%; }  #pc-date { top:20.9%; }
+  .pc-pic { position:absolute; left:11.5%; top:46.6%; width:27.9%; height:42.7%; display:flex; align-items:center; justify-content:center; }
+  .pc-pic img { max-width:100%; max-height:100%; object-fit:contain; }
+  .pc-pic.empty { border:2px dashed rgba(88,51,38,.35); font-size:calc(var(--fs) * .6); text-align:center; opacity:.7; }
+  .pc-msg { position:absolute; left:51.5%; top:33.9%; width:43.5%; height:44%; overflow:hidden; font-size:var(--fs); line-height:1.25; white-space:pre-line; }
+  .pc-name { position:absolute; left:56.8%; top:81.5%; max-width:39%; font-size:var(--fs); line-height:1.1; white-space:nowrap; overflow:hidden; }
+  #pc-done { font:700 20px "Gaegu","Comic Sans MS",cursive; color:#583326; background:#f6ecd6; border:2px solid #583326;
+    border-radius:6px; padding:8px 26px; cursor:pointer; }
+  #pc-done:hover, #pc-done:focus-visible { background:#fff8e6; outline:3px solid #fff; }
 </style>
 </head>
 <body>
@@ -166,6 +186,22 @@
 
 <div id="hint" aria-live="polite"></div>
 
+<div id="postcard-overlay" role="dialog" aria-modal="true" aria-label="Postcard" aria-hidden="true">
+  <div class="pc-wrap">
+    <div class="postcard" id="postcard">
+      <img class="pc-bg" src="postcard-blank.jpg" alt="">
+      <div class="pc-line" id="pc-location"></div>
+      <div class="pc-line" id="pc-planet"></div>
+      <div class="pc-line" id="pc-date"></div>
+      <div class="pc-pic" id="pc-pic"><img id="pc-img" alt=""></div>
+      <div class="pc-msg" id="pc-msg"></div>
+      <div class="pc-name" id="pc-name"></div>
+    </div>
+    <button id="pc-done" type="button">Done reading</button>
+  </div>
+</div>
+
+
 <script>
   // ---------- reduced motion: stop the spin ----------
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -194,12 +230,131 @@
     });
   });
 
-  // ---------- clicks (placeholder: the postcard popup plugs in here next) ----------
-  function openWorld(world) {
-    console.log('Clicked:', world);
-    const hint = document.getElementById('hint');
-    if (hint) hint.textContent = 'You clicked ' + world + ' (postcard popup goes here).';
+  // ---------- postcards: settings you may edit ----------
+  // The spreadsheet, saved as CSV. Tried in this order (first one that loads wins).
+  const CSV_URLS = [
+    'postcards.csv',
+    'https://raw.githubusercontent.com/aagneyashrivastav/nasa3dmodels/main/postcards.csv'
+  ];
+  // First number in a card id -> which world's stack the card belongs to.
+  const WORLD_CODES = { moon: '1', mars: '2', ceres: '3', eros: '4' };
+  // Machine drawings live here, named <world>-<machine>.png (card id 1-2-3 uses images/1-2.png).
+  const IMAGE_DIR = 'images/';
+
+  // ---------- postcards: reading the spreadsheet ----------
+  function parseCSV(text) {
+    const rows = []; let row = [], cur = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (quoted) {
+        if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else quoted = false; }
+        else cur += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ',') { row.push(cur); cur = ''; }
+      else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(cur); cur = '';
+        if (row.some(x => x.trim() !== '')) rows.push(row);
+        row = [];
+      } else cur += c;
+    }
+    row.push(cur);
+    if (row.some(x => x.trim() !== '')) rows.push(row);
+    return rows;
   }
+  function toCards(rows) {
+    return rows.map(r => ({
+      id: (r[0] || '').trim(), location: (r[1] || '').trim(), planet: (r[2] || '').trim(),
+      date: (r[3] || '').trim(), name: (r[4] || '').trim(), message: (r[5] || '').trim(), image: (r[6] || '').trim()
+    })).filter(c => /^\d/.test(c.id));          // rows whose id does not start with a number (like the header) are skipped
+  }
+  function parseId(id) {                          // "1-2-3" or "123" -> world 1, machine 2, card 3
+    if (/[-._ ]/.test(id)) { const p = id.split(/[-._ ]+/); return { world: p[0], machine: p[1] || '', n: p[2] || '' }; }
+    return { world: id[0], machine: id[1] || '', n: id.slice(2) };
+  }
+  let CARDS = null;
+  async function loadCards() {
+    for (const url of CSV_URLS) {
+      try {
+        const r = await fetch(url, { cache: 'no-cache' });
+        if (!r.ok) continue;
+        const cards = toCards(parseCSV((await r.text()).replace(/^\uFEFF/, '')));
+        if (cards.length) return cards;
+      } catch (e) { /* try the next address */ }
+    }
+    return [];
+  }
+  loadCards().then(c => { CARDS = c; });
+
+  // ---------- postcards: choosing a card ----------
+  const shown = {};                               // per world: cards already shown this visit
+  function pickCard(world) {
+    const stack = CARDS.filter(c => parseId(c.id).world === WORLD_CODES[world]);
+    if (!stack.length) return null;
+    let pool = stack.filter(c => !(shown[world] || []).includes(c.id));
+    if (!pool.length) { shown[world] = []; pool = stack; }       // every card seen: start over
+    const card = pool[Math.floor(Math.random() * pool.length)];
+    (shown[world] = shown[world] || []).push(card.id);
+    return card;
+  }
+
+  // ---------- postcards: showing the popup ----------
+  const $ = id => document.getElementById(id);
+  const overlay = $('postcard-overlay');
+  let lastFocus = null;
+
+  function fit(el, startPx, minPx) {                // shrink text until it fits its box
+    let size = startPx; el.style.fontSize = size + 'px';
+    while ((el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1) && size > minPx) {
+      size -= 0.5; el.style.fontSize = size + 'px';
+    }
+  }
+  function fitAll() {
+    const base = $('postcard').clientWidth * 0.031;
+    $('postcard').style.setProperty('--fs', base + 'px');
+    fit($('pc-msg'), base, 8);
+    fit($('pc-name'), base, 8);
+  }
+  function showCard(c) {
+    const p = parseId(c.id);
+    $('pc-location').textContent = c.location;
+    $('pc-planet').textContent = c.planet;
+    $('pc-date').textContent = c.date;
+    $('pc-msg').textContent = c.message;
+    $('pc-name').textContent = '\u2013 ' + c.name;
+    const pic = $('pc-pic'), img = $('pc-img');
+    pic.classList.remove('empty'); pic.childNodes.forEach(n => { if (n.nodeType === 3) n.remove(); });
+    img.style.display = '';
+    img.alt = 'Hand-drawn sketch of ' + c.name;
+    img.onerror = () => { img.style.display = 'none'; pic.classList.add('empty'); pic.append('sketch coming soon'); };
+    img.src = c.image || (IMAGE_DIR + p.world + '-' + p.machine + '.png');
+    lastFocus = document.activeElement;
+    overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false');
+    fitAll();
+    $('pc-done').focus();
+  }
+  function closeCard() {
+    overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true');
+    if (lastFocus) lastFocus.focus();
+  }
+  async function openWorld(world) {
+    if (CARDS === null) CARDS = await loadCards();
+    const card = CARDS.length ? pickCard(world) : null;
+    if (!card) {
+      $('hint').textContent = CARDS.length ? 'No postcards for this world yet.' : 'Could not load the postcards file (postcards.csv).';
+      return;
+    }
+    showCard(card);
+  }
+  $('pc-done').addEventListener('click', closeCard);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeCard(); });
+  document.addEventListener('keydown', e => {
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') closeCard();
+    if (e.key === 'Tab') { e.preventDefault(); $('pc-done').focus(); }
+  });
+  window.addEventListener('resize', () => { if (overlay.classList.contains('open')) fitAll(); });
+
   document.querySelectorAll('.clickable').forEach(el => {
     el.addEventListener('click', () => openWorld(el.dataset.world));
     el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openWorld(el.dataset.world); } });
