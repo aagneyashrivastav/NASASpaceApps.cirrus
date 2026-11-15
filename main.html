@@ -1,1 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Postcards from the Silent</title>
 
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&display=swap" rel="stylesheet">
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+
+<style>
+  :root { --font: "Cormorant Garamond", Georgia, serif; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; min-height:100%; }
+  body {
+    font-family: var(--font); color:#f2efe6;
+    background: radial-gradient(ellipse at 50% 30%, #17204a 0%, #0b1026 55%, #05070f 100%) fixed;
+    overflow-x:hidden;
+  }
+
+  /* ---------- stars (created by the script at the bottom) ---------- */
+  #stars { position:fixed; inset:0; pointer-events:none; z-index:0; }
+  .star { position:absolute; border-radius:50%; background:#fff; animation: twinkle 4s ease-in-out infinite; }
+  @keyframes twinkle { 0%,100% { opacity:.25 } 50% { opacity:1 } }
+
+  /* ---------- title ---------- */
+  header { position:relative; z-index:2; text-align:center; padding:28px 16px 0; }
+  header h1 { margin:0; font-weight:600; font-size:clamp(28px,5vw,48px); letter-spacing:.02em; }
+  header p  { margin:6px 0 0; font-size:clamp(16px,2.2vw,22px); opacity:.8; }
+
+  /* ---------- the sky ---------- */
+  .space { position:relative; z-index:1; height:88vh; min-height:620px; }
+  .body { position:absolute; margin:0; text-align:center; }
+  .body figcaption { margin-top:4px; font-size:clamp(16px,1.6vw,22px); letter-spacing:.04em; }
+
+  /* position + size of each world (percentages of the sky) */
+  #eros  { left:12%; top:12%; width:clamp(90px,11vw,150px); }
+  #ceres { left:74%; top:10%; width:clamp(110px,14vw,200px); }
+  #earth { left:38%; top:30%; width:clamp(180px,24vw,340px); }
+  #moon  { left:68%; top:56%; width:clamp(100px,12vw,170px); }
+  #mars  { left:12%; top:56%; width:clamp(130px,17vw,240px); }
+
+  /* ---------- the 3D models ---------- */
+  model-viewer {
+    width:100%; aspect-ratio:1 / 1; display:block;
+    background:transparent; --poster-color:transparent;
+    animation: breathe 4s ease-in-out infinite;        /* always-on "breathing" */
+    transition: transform .3s ease, filter .3s ease;   /* smooth hover */
+    filter: drop-shadow(0 0 10px rgba(255,255,255,.55));
+  }
+  @keyframes breathe { 0%,100% { scale:1 } 50% { scale:1.04 } }
+
+  /* clickable worlds: glow + grow on hover or keyboard focus */
+  .clickable model-viewer { cursor:pointer; }
+  .clickable:hover model-viewer, .clickable:focus-within model-viewer {
+    transform: scale(1.15); filter: drop-shadow(0 0 26px rgba(255,255,255,.95));
+  }
+  /* Mars glows reddish-orange instead of white */
+  #mars model-viewer { filter: drop-shadow(0 0 10px rgba(255,122,60,.6)); }
+  #mars:hover model-viewer, #mars:focus-within model-viewer { filter: drop-shadow(0 0 26px rgba(255,122,60,1)); }
+  /* Earth is "home": not clickable, so no pointer and no hover effect */
+  #earth model-viewer { cursor:default; }
+
+  #hint { position:relative; z-index:2; text-align:center; padding:8px 16px 28px; font-size:20px; opacity:.85; }
+
+  /* phones: stack the worlds in a column instead of scattering them */
+  @media (max-width:700px) {
+    .space { height:auto; display:flex; flex-direction:column; align-items:center; gap:18px; padding:20px 0; }
+    .body { position:static; width:clamp(150px,55vw,240px) !important; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    model-viewer, .star { animation:none; }
+  }
+</style>
+</head>
+<body>
+<div id="stars"></div>
+
+<header>
+  <h1>Postcards from the Silent</h1>
+  <p>They finished their missions. Earth is still listening.</p>
+</header>
+
+<main class="space">
+  <!-- File names must match the repo exactly (case-sensitive). Change @main if your branch has another name. -->
+  <figure class="body clickable" id="eros"  data-world="eros"  tabindex="0" role="button" aria-label="Eros. Open a postcard.">
+    <model-viewer alt="A slowly spinning model of the asteroid Eros" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Eros_1_10.glb"
+      auto-rotate rotation-per-second="12deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <figcaption>Eros</figcaption>
+  </figure>
+
+  <figure class="body clickable" id="ceres" data-world="ceres" tabindex="0" role="button" aria-label="Ceres. Open a postcard.">
+    <model-viewer alt="A slowly spinning model of the dwarf planet Ceres" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Ceres_1_1000.glb"
+      auto-rotate rotation-per-second="10deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <figcaption>Ceres</figcaption>
+  </figure>
+
+  <figure class="body" id="earth">
+    <model-viewer alt="A slowly spinning model of Earth" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/Earth_1_12756.glb"
+      auto-rotate rotation-per-second="8deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <figcaption>Earth</figcaption>
+  </figure>
+
+  <figure class="body clickable" id="moon"  data-world="moon"  tabindex="0" role="button" aria-label="The Moon. Open a postcard.">
+    <model-viewer alt="A slowly spinning model of the Moon" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/moon_small.glb"
+      auto-rotate rotation-per-second="10deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <figcaption>The Moon</figcaption>
+  </figure>
+
+  <figure class="body clickable" id="mars"  data-world="mars"  tabindex="0" role="button" aria-label="Mars. Open a postcard.">
+    <model-viewer alt="A slowly spinning model of Mars" src="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/24881_Mars_1_6792.glb"
+      auto-rotate rotation-per-second="10deg" interaction-prompt="none" disable-zoom disable-pan environment-image="neutral"></model-viewer>
+    <figcaption>Mars</figcaption>
+  </figure>
+</main>
+
+<div id="hint" aria-live="polite">Click a world to receive a postcard.</div>
+
+<script>
+  // ---------- stars ----------
+  (function () {
+    const box = document.getElementById('stars');
+    for (let i = 0; i < 140; i++) {
+      const s = document.createElement('div');
+      const size = Math.random() * 2 + 1;
+      s.className = 'star';
+      s.style.cssText = 'left:' + Math.random() * 100 + '%;top:' + Math.random() * 100 + '%;' +
+        'width:' + size + 'px;height:' + size + 'px;animation-delay:' + (Math.random() * 4) + 's;';
+      box.appendChild(s);
+    }
+  })();
+
+  // ---------- reduced motion: stop the spin too ----------
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('model-viewer').forEach(m => m.removeAttribute('auto-rotate'));
+  }
+
+  // ---------- clicks (placeholder: the postcard popup plugs in here next) ----------
+  function openWorld(world) {
+    console.log('Clicked:', world);
+    document.getElementById('hint').textContent = 'You clicked ' + world + ' (postcard popup goes here).';
+  }
+  document.querySelectorAll('.clickable').forEach(el => {
+    el.addEventListener('click', () => openWorld(el.dataset.world));
+    el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openWorld(el.dataset.world); } });
+  });
+</script>
+</body>
+</html>
