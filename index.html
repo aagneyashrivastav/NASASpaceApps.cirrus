@@ -139,6 +139,13 @@
   #pc-done { font:700 20px "Gaegu","Comic Sans MS",cursive; color:#583326; background:#f6ecd6; border:2px solid #583326;
     border-radius:6px; padding:8px 26px; cursor:pointer; }
   #pc-done:hover, #pc-done:focus-visible { background:#fff8e6; outline:3px solid #fff; }
+  /* ---------- "Look into it" links under the postcard ---------- */
+  .pc-links { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:10px; max-width:100%; }
+  .pc-links[hidden] { display:none; }
+  .pc-links-label { font:700 20px "Gaegu","Comic Sans MS",cursive; color:#f6ecd6; }
+  .pc-links a { font:700 18px "Gaegu","Comic Sans MS",cursive; color:#583326; background:#f6ecd6; border:2px solid #583326;
+    border-radius:6px; padding:6px 16px; text-decoration:none; }
+  .pc-links a:hover, .pc-links a:focus-visible { background:#fff8e6; outline:3px solid #fff; }
 </style>
 </head>
 <body>
@@ -197,6 +204,7 @@
       <div class="pc-msg" id="pc-msg"></div>
       <div class="pc-name" id="pc-name"></div>
     </div>
+    <div id="pc-links" class="pc-links" hidden></div>
     <button id="pc-done" type="button">Done reading</button>
   </div>
 </div>
@@ -265,7 +273,7 @@
   function toCards(rows) {
     return rows.map(r => ({
       id: (r[0] || '').trim(), location: (r[1] || '').trim(), planet: (r[2] || '').trim(),
-      date: (r[3] || '').trim(), name: (r[4] || '').trim(), message: (r[5] || '').trim(), image: (r[6] || '').trim()
+      date: (r[3] || '').trim(), name: (r[4] || '').trim(), message: (r[5] || '').trim(), image: (r[6] || '').trim(), links: (r[7] || '').trim()
     })).filter(c => /^\d/.test(c.id));          // rows whose id does not start with a number (like the header) are skipped
   }
   function parseId(id) {                          // "1-2-3" or "123" -> world 1, machine 2, card 3
@@ -315,6 +323,31 @@
     fit($('pc-msg'), base, 8);
     fit($('pc-name'), base, 8);
   }
+  // "Look into it" links. CSV cell format:  Label|URL; Label|URL   (label optional)
+  function renderLinks(raw) {
+    const box = $('pc-links');
+    box.textContent = '';
+    const links = [];
+    (raw || '').split(';').forEach(part => {
+      part = part.trim(); if (!part) return;
+      const i = part.indexOf('|');
+      let label = i > -1 ? part.slice(0, i).trim() : '';
+      const url = (i > -1 ? part.slice(i + 1) : part).trim();
+      if (!/^https?:\/\//i.test(url)) return;
+      if (!label) { try { label = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { label = 'More info'; } }
+      links.push({ label, url });
+    });
+    if (!links.length) { box.hidden = true; return; }
+    const lead = document.createElement('span');
+    lead.className = 'pc-links-label'; lead.textContent = 'Look into it:';
+    box.append(lead);
+    links.forEach(l => {
+      const a = document.createElement('a');
+      a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = l.label;
+      box.append(a);
+    });
+    box.hidden = false;
+  }
   function showCard(c) {
     const p = parseId(c.id);
     $('pc-location').textContent = c.location;
@@ -322,6 +355,7 @@
     $('pc-date').textContent = c.date;
     $('pc-msg').textContent = c.message;
     $('pc-name').textContent = '\u2013 ' + c.name;
+    renderLinks(c.links);
     const pic = $('pc-pic'), img = $('pc-img');
     pic.classList.remove('empty'); pic.childNodes.forEach(n => { if (n.nodeType === 3) n.remove(); });
     img.style.display = '';
@@ -351,7 +385,13 @@
   document.addEventListener('keydown', e => {
     if (!overlay.classList.contains('open')) return;
     if (e.key === 'Escape') closeCard();
-    if (e.key === 'Tab') { e.preventDefault(); $('pc-done').focus(); }
+    if (e.key === 'Tab') {
+      const f = [...overlay.querySelectorAll('a[href], button')].filter(x => !x.closest('[hidden]'));
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (!overlay.contains(document.activeElement) || (e.shiftKey && document.activeElement === first)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
   });
   window.addEventListener('resize', () => { if (overlay.classList.contains('open')) fitAll(); });
 
