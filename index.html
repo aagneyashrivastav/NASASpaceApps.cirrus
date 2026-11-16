@@ -211,19 +211,19 @@
   /* ---------- regions: Outer Solar System (fog) and Earth's Orbit ---------- */
   /* POSITION TUNING: left/top are the CENTRE of each region, as % of the sky. */
   #outer { left:15%; top:26%; width:clamp(240px,28vw,540px); }
-  #orbit { left:31%; top:49%; width:auto; }
+  #orbit { left:60%; top:60%; width:auto; }
   .zone-fog { display:block; width:100%; height:auto; pointer-events:none;
     /* FOG TUNING: the picture is dark grey smoke, so invert(1) turns it into pale mist. brightness = how bright, opacity = how strong. */
     filter:invert(1) brightness(1.15); opacity:.9;
     transition:transform .3s ease, filter .3s ease, opacity .3s ease; animation:fog-drift 24s ease-in-out infinite alternate; }
   @keyframes fog-drift { from { transform:translateX(-2%) scale(1); } to { transform:translateX(2%) scale(1.04); } }
   .body .zone-label { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); margin:0; width:max-content; max-width:90%;
-    font:700 clamp(12px,1.45vw,22px) var(--font); letter-spacing:.14em; text-transform:uppercase; text-align:center;
+    font:700 clamp(12px,1.45vw,22px) var(--font); letter-spacing:.14em; text-align:center;
     text-shadow:0 0 10px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9); transition:text-shadow .3s ease; }
   #outer:hover .zone-fog, #outer:focus-within .zone-fog { transform:scale(1.07); filter:invert(1) brightness(1.5); opacity:1; animation-play-state:paused; }
   #outer:hover .zone-label, #outer:focus-within .zone-label { text-shadow:0 0 18px rgba(143,208,255,1), 0 0 6px #000; }
   .body .zone-orbit { margin:0; padding:.7em 1.6em; border:1px dashed rgba(140,180,255,.6); border-radius:50%;
-    font:700 clamp(11px,1.3vw,19px) var(--font); letter-spacing:.14em; text-transform:uppercase; white-space:nowrap;
+    font:700 clamp(11px,1.3vw,19px) var(--font); letter-spacing:.14em; white-space:nowrap;
     background:rgba(3,5,14,.35); text-shadow:0 0 10px rgba(0,0,0,.9);
     transition:transform .3s ease, border-color .3s ease, box-shadow .3s ease; }
   #orbit:hover .zone-orbit, #orbit:focus-within .zone-orbit { transform:scale(1.1); border-color:#8fd0ff; border-style:solid; box-shadow:0 0 22px rgba(143,208,255,.8); }
