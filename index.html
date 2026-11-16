@@ -609,13 +609,27 @@
       size -= 0.5; el.style.fontSize = size + 'px';
     }
   }
-  function fitAll() {
+ /* function fitAll() {
     const base = $('postcard').clientWidth * 0.031;
     $('postcard').style.setProperty('--fs', base + 'px');
     fit($('pc-msg'), base, 8);
     fit($('pc-name'), base, 8);
     ['pc-location', 'pc-planet', 'pc-date'].forEach(id => fit($(id), base, 8));
   }
+*/
+  function fitAll() {
+  const base = Math.max(18, $('postcard').clientWidth * 0.038);
+
+  $('postcard').style.setProperty('--fs', base + 'px');
+
+  fit($('pc-msg'), base, 12);
+  fit($('pc-name'), base, 12);
+  ['pc-location', 'pc-planet', 'pc-date'].forEach(id => {
+    fit($(id), base, 12);
+  });
+} 
+
+  
   // "Look into it" buttons under the postcard. Link 1 = mission page, Link 2 = images / data.
   const LINK_KINDS = { mission: { icon: '\u{1F6F0}\uFE0F', text: 'Mission page' }, images: { icon: '\u{1F5BC}\uFE0F', text: 'Images & data' } };
   function renderLinks(links) {
