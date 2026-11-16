@@ -207,6 +207,31 @@
     font:700 16px var(--font); color:#eaf2ff; background:rgba(0,0,0,.4); border:1px solid rgba(140,180,255,.45); }
   #help-btn:hover, #help-btn:focus-visible { background:rgba(255,255,255,.18); outline:2px solid #8fb8ff; }
   @media (prefers-reduced-motion: reduce) { #welcome, .wl-panel { transition:none; } }
+
+  /* ---------- regions: Outer Solar System (fog) and Earth's Orbit ---------- */
+  /* POSITION TUNING: left/top are the CENTRE of each region, as % of the sky. */
+  #outer { left:15%; top:26%; width:clamp(240px,28vw,540px); }
+  #orbit { left:31%; top:49%; width:auto; }
+  .zone-fog { display:block; width:100%; height:auto; pointer-events:none;
+    /* FOG TUNING: the picture is dark grey smoke, so invert(1) turns it into pale mist. brightness = how bright, opacity = how strong. */
+    filter:invert(1) brightness(1.15); opacity:.9;
+    transition:transform .3s ease, filter .3s ease, opacity .3s ease; animation:fog-drift 24s ease-in-out infinite alternate; }
+  @keyframes fog-drift { from { transform:translateX(-2%) scale(1); } to { transform:translateX(2%) scale(1.04); } }
+  .body .zone-label { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); margin:0; width:max-content; max-width:90%;
+    font:700 clamp(12px,1.45vw,22px) var(--font); letter-spacing:.14em; text-transform:uppercase; text-align:center;
+    text-shadow:0 0 10px rgba(0,0,0,.9), 0 0 4px rgba(0,0,0,.9); transition:text-shadow .3s ease; }
+  #outer:hover .zone-fog, #outer:focus-within .zone-fog { transform:scale(1.07); filter:invert(1) brightness(1.5); opacity:1; animation-play-state:paused; }
+  #outer:hover .zone-label, #outer:focus-within .zone-label { text-shadow:0 0 18px rgba(143,208,255,1), 0 0 6px #000; }
+  .body .zone-orbit { margin:0; padding:.7em 1.6em; border:1px dashed rgba(140,180,255,.6); border-radius:50%;
+    font:700 clamp(11px,1.3vw,19px) var(--font); letter-spacing:.14em; text-transform:uppercase; white-space:nowrap;
+    background:rgba(3,5,14,.35); text-shadow:0 0 10px rgba(0,0,0,.9);
+    transition:transform .3s ease, border-color .3s ease, box-shadow .3s ease; }
+  #orbit:hover .zone-orbit, #orbit:focus-within .zone-orbit { transform:scale(1.1); border-color:#8fd0ff; border-style:solid; box-shadow:0 0 22px rgba(143,208,255,.8); }
+  @media (prefers-reduced-motion: reduce) { .zone-fog { animation:none; } }
+  @media (max-width:700px) {
+    #outer { position:relative; width:78vw; }
+    #orbit { width:auto; }
+  }
 </style>
 </head>
 <body>
@@ -251,6 +276,17 @@
       auto-rotate rotation-per-second="3.25deg" interaction-prompt="none" disable-zoom disable-pan environment-image="https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/SunLight.png" exposure="5.1"></model-viewer>
     <figcaption>Mars</figcaption>
   </figure>
+
+  <!-- Regions of space (not single worlds). The fog picture smoke-028-2.png must be in the same GitHub repo. -->
+  <figure class="body clickable" id="outer" data-world="outer" tabindex="0" role="button" aria-label="Outer Solar System. Open a postcard.">
+    <img class="zone-fog" src="smoke-028-2.png" alt=""
+      onerror="this.onerror=null;this.src='https://cdn.jsdelivr.net/gh/aagneyashrivastav/nasa3dmodels@main/smoke-028-2.png'">
+    <figcaption class="zone-label">Outer Solar System</figcaption>
+  </figure>
+
+  <figure class="body clickable" id="orbit" data-world="orbit" tabindex="0" role="button" aria-label="Earth's Orbit. Open a postcard.">
+    <figcaption class="zone-orbit">Earth's Orbit</figcaption>
+  </figure>
 </main>
 
 <div id="hint" aria-live="polite"></div>
@@ -261,8 +297,8 @@
     <p class="wl-sub">POSTCARDS FROM THE SOLAR SYSTEM</p>
     <p id="wl-intro">Since the 1960s, NASA has left robots behind on the Moon, on Mars, and out in deep space. Their missions are over, but they still have stories to tell. Each one has written postcards to send back to Earth.</p>
     <ol class="wl-steps">
-      <li><span class="wl-num">1</span><span><b>Pick a world.</b> Click the Moon, Mars, Ceres, or Eros to get a postcard from one of the machines left there.</span></li>
-      <li><span class="wl-num">2</span><span><b>Read it.</b> Each postcard is from the machine. Press <b>Done reading</b> to go back to space.</span></li>
+      <li><span class="wl-num">1</span><span><b>Pick a place.</b> Click the Moon, Mars, Ceres, Eros, the Outer Solar System, or Earth's Orbit to get a postcard from one of the machines left there.</span></li>
+      <li><span class="wl-num">2</span><span><b>Read it.</b> Each postcard is written by the machine itself. Press <b>Done reading</b> to go back to space.</span></li>
       <li><span class="wl-num">3</span><span><b>Look into it.</b> Use the buttons under a postcard to open real NASA pages, photos, and data.</span></li>
       <li><span class="wl-num">4</span><span><b>Collect them all.</b> A tracker at the bottom shows which machines you have heard from. Fill all the dots to collect every postcard, and click a name to read one again.</span></li>
     </ol>
@@ -330,7 +366,7 @@
     'https://raw.githubusercontent.com/aagneyashrivastav/nasa3dmodels/main/postcards.csv'
   ];
   // First number in a card id -> which world's stack the card belongs to.
-  const WORLD_CODES = { moon: '1', mars: '2', ceres: '3', eros: '4' };
+  const WORLD_CODES = { moon: '1', mars: '2', ceres: '3', eros: '4', outer: '5', orbit: '6' };
   // Machine drawings live here, named <world>-<machine>.png (card id 1-2-3 uses images/1-2.png).
   const IMAGE_DIR = 'images/';
 
@@ -458,7 +494,7 @@
     if (lastFocus) lastFocus.focus();
   }
   // ---------- progress tracker ----------
-  const WORLD_TITLES = { '1': 'The Moon', '2': 'Mars', '3': 'Ceres', '4': 'Eros' };
+  const WORLD_TITLES = { '1': 'The Moon', '2': 'Mars', '3': 'Ceres', '4': 'Eros', '5': 'Outer Solar System', '6': "Earth's Orbit" };
   const seen = {};     // machine key -> card ids received (sorted)
   const tiles = {};    // machine key -> its tile parts
   const cycle = {};    // machine key -> which seen card a name-click shows next
