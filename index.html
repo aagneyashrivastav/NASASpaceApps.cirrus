@@ -232,6 +232,25 @@
     #outer { position:relative; width:78vw; }
     #orbit { width:auto; }
   }
+
+  /* ---------- flip arrows, counter, and tracker hint ---------- */
+  .pc-stage { position:relative; width:100%; }
+  .pc-arrow { position:absolute; top:50%; transform:translateY(-50%); z-index:3; width:48px; height:48px; border-radius:50%; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; padding:0 0 5px; font:700 34px/1 "Segoe UI",Arial,sans-serif;
+    color:#583326; background:#f6ecd6; border:2px solid #583326; box-shadow:0 4px 14px rgba(0,0,0,.65); }
+  .pc-arrow[hidden] { display:none; }
+  .pc-arrow-prev { left:-16px; }
+  .pc-arrow-next { right:-16px; }
+  .pc-arrow:hover, .pc-arrow:focus-visible { background:#fff8e6; outline:3px solid #fff; }
+  .pc-count { font:700 18px "Gaegu","Comic Sans MS",cursive; color:#f6ecd6; text-align:center; }
+  .pc-count[hidden] { display:none; }
+  .postcard.from-right { animation:pc-in-right .28s ease; }
+  .postcard.from-left { animation:pc-in-left .28s ease; }
+  @keyframes pc-in-right { from { opacity:0; transform:translateX(26px); } to { opacity:1; transform:none; } }
+  @keyframes pc-in-left { from { opacity:0; transform:translateX(-26px); } to { opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: reduce) { .postcard.from-right, .postcard.from-left { animation:none; } }
+  .tr-hint { display:block; margin-top:5px; font-size:9px; letter-spacing:.12em; opacity:.7; }
+  .tr-tile:hover .tr-hint, .tr-tile:focus-visible .tr-hint { opacity:1; }
 </style>
 </head>
 <body>
@@ -300,7 +319,7 @@
       <li><span class="wl-num">1</span><span><b>Pick a place.</b> Click the Moon, Mars, Ceres, Eros, the Outer Solar System, or Earth's Orbit to get a postcard from one of the machines left there.</span></li>
       <li><span class="wl-num">2</span><span><b>Read it.</b> Each postcard is written by the machine itself. Press <b>Done reading</b> to go back to space.</span></li>
       <li><span class="wl-num">3</span><span><b>Look into it.</b> Use the buttons under a postcard to open real NASA pages, photos, and data.</span></li>
-      <li><span class="wl-num">4</span><span><b>Collect them all.</b> A tracker at the bottom shows which machines you have heard from. Fill all the dots to collect every postcard, and click a name to read one again.</span></li>
+      <li><span class="wl-num">4</span><span><b>Collect them all.</b> A tracker at the bottom shows which machines you have heard from. Fill all the dots to collect every postcard. Click a name to read your postcards again, and use the arrows on a postcard to flip to the next one.</span></li>
     </ol>
     <button id="wl-start" type="button">Start exploring</button>
   </div>
@@ -316,6 +335,8 @@
 
 <div id="postcard-overlay" role="dialog" aria-modal="true" aria-label="Postcard" aria-hidden="true">
   <div class="pc-wrap">
+    <div class="pc-stage">
+    <button id="pc-prev" class="pc-arrow pc-arrow-prev" type="button" aria-label="Previous postcard" hidden>&#8249;</button>
     <div class="postcard" id="postcard">
       <img class="pc-bg" src="postcard-blank.jpg" alt="">
       <div class="pc-line" id="pc-location"></div>
@@ -325,6 +346,9 @@
       <div class="pc-msg" id="pc-msg"></div>
       <div class="pc-name" id="pc-name"></div>
     </div>
+    <button id="pc-next" class="pc-arrow pc-arrow-next" type="button" aria-label="Next postcard" hidden>&#8250;</button>
+    </div>
+    <div id="pc-count" class="pc-count" aria-live="polite" hidden></div>
     <div id="pc-links" class="pc-links" hidden></div>
     <button id="pc-done" type="button">Done reading</button>
   </div>
@@ -391,19 +415,159 @@
     if (row.some(x => x.trim() !== '')) rows.push(row);
     return rows;
   }
+  // Link labels -> web addresses. A spreadsheet saved as CSV keeps only the visible text of a hyperlink, not the address,
+  // so each label that appears in the "Link 1" / "Link 2" columns is listed here. Add a new line for every new label.
+  // (A cell can also hold the address itself, or "Label|https://address", and then no line is needed here.)
+  const LINK_TABLE = [
+    ["NSSDCA catalog", "https://nssdc.gsfc.nasa.gov/"],
+    ["NSSDCA: Apollo 11 LM", "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1969-059C"],
+    ["NSSDCA: Apollo 15 LRV", "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1971-063C"],
+    ["NSSDCA: Apollo 12 ALSEP", "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1969-099C"],
+    ["Apollo Lunar Surface Journal (photos, transcripts)", "https://www.hq.nasa.gov/alsj/"],
+    ["LROC: Lunar Reconnaissance Orbiter Camera (see the sites from orbit)", "https://www.lroc.asu.edu/"],
+    ["NASA Moon Trek (interactive map)", "https://trek.nasa.gov/moon/"],
+    ["PDS Geosciences Node (raw mission data)", "https://pds-geosciences.wustl.edu/"],
+    ["NASA Image & Video Library", "https://images.nasa.gov/"],
+    ["JPL Photojournal", "https://photojournal.jpl.nasa.gov/"],
+    ["NASA Science: Surveyor 3", "https://science.nasa.gov/mission/surveyor-3/"],
+    ["NASA Science: Mars Pathfinder", "https://science.nasa.gov/mission/mars-pathfinder/"],
+    ["Pathfinder \"Presidential\" panorama (image)", "https://science.nasa.gov/wp-content/uploads/2024/03/mars-pathfinder-presidential-panorama-lg.jpg"],
+    ["Airbag test photo (image)", "https://science.nasa.gov/wp-content/uploads/2024/08/5277460495-c6d046d5a9-o.jpg"],
+    ["Ares Vallis boulders (image)", "https://science.nasa.gov/wp-content/uploads/2024/03/pia00609-1e7c7c.jpg"],
+    ["Sojourner APXS deployment (animated GIF)", "https://assets.science.nasa.gov/content/dam/science/psd/mars/resources/detail_files/8/8782_mars-rover-pathfinder-sol14_S0050J-full2.gif"],
+    ["Lander + Sojourner, airbags deflated (image)", "https://science.nasa.gov/wp-content/uploads/2017/12/pia00621-pathfinder-and-sojourner-with-airbags-deflated.jpg"],
+    ["NASA Science: Spirit & Opportunity", "https://science.nasa.gov/mission/mars-exploration-rovers-spirit-and-opportunity/"],
+    ["MER science highlights", "https://science.nasa.gov/mission/mars-exploration-rovers-spirit-and-opportunity/science-highlights/"],
+    ["MER by-the-numbers infographic (image)", "https://science.nasa.gov/wp-content/uploads/2024/03/mer-bythenumbers-infographic-feb2019.jpg"],
+    ["Spirit landing site mosaic (image)", "https://science.nasa.gov/wp-content/uploads/2024/03/sol016-lander-pan-pia05117.jpg"],
+    ["Opportunity \"Lion King\" panorama (image)", "https://science.nasa.gov/wp-content/uploads/2024/03/sol058-to-060-lion-king-pia05755.jpg"],
+    ["Photojournal PIA05755 (full panorama page)", "https://photojournal.jpl.nasa.gov/catalog/PIA05755"],
+    ["NASA Science: Viking 1", "https://science.nasa.gov/mission/viking-1/"],
+    ["NASA Science: Viking 2", "https://science.nasa.gov/mission/viking/viking-2"],
+    ["Viking spacecraft & science", "https://science.nasa.gov/mission/viking/spacecraft-and-science"],
+    ["Photojournal PIA00563: Viking 1 first color image", "https://photojournal.jpl.nasa.gov/catalog/PIA00563"],
+    ["NASA Mars Trek (interactive map)", "https://trek.nasa.gov/mars/"],
+    ["NASA Science: InSight", "https://science.nasa.gov/mission/insight/"],
+    ["IRIS (InSight seismic data archive)", "https://www.iris.edu/hq/"],
+    ["NASA Science: Ingenuity", "https://science.nasa.gov/mission/mars-2020-perseverance/ingenuity-mars-helicopter/"],
+    ["NASA Science: Dawn", "https://science.nasa.gov/mission/dawn/"],
+    ["PDS Small Bodies Node (Dawn/NEAR data)", "https://pds-smallbodies.astro.umd.edu/"],
+    ["NASA Science: NEAR Shoemaker", "https://science.nasa.gov/mission/near-shoemaker/"],
+    ["NASA Science: Pioneer 10", "https://science.nasa.gov/mission/pioneer-10/"],
+    ["NASA: \"Pioneer 10 Sends Last Signal\"", "https://science.nasa.gov/missions/pioneer/pioneer-10-sends-last-signal/"],
+    ["NASA: 10 Things About the Pioneer Spacecraft", "https://science.nasa.gov/missions/pioneer/pioneer-11/10-things-about-pioneer-spacecraft/"],
+    ["Planetary Society: Pioneer 10 & 11", "https://www.planetary.org/space-missions/pioneer"],
+    ["NASA Science: Kepler", "https://science.nasa.gov/mission/kepler/"],
+    ["NASA Exoplanet Archive (planet data)", "https://exoplanetarchive.ipac.caltech.edu/"],
+    ["MAST: Kepler raw data", "https://archive.stsci.edu/missions-and-data/kepler"],
+    ["NASA Science: Surveyor 1", "https://science.nasa.gov/mission/surveyor-1"],
+    ["NASA Science: Phoenix", "https://science.nasa.gov/mission/phoenix"],
+    ["NASA Science: Pioneer 11", "https://science.nasa.gov/mission/pioneer-11/"],
+    ["NSSDCA: Apollo 15 Lunar Module/ALSEP (covers rover use)", "https://nssdc.gsfc.nasa.gov/nmc/spacecraft/display.action?id=1971-063C"],
+    ["NSSDCA: Apollo 17 mission page", "https://nssdc.gsfc.nasa.gov/planetary//lunar/apollo17info.html"],
+    ["NSSDCA: Apollo Lunar Roving Vehicle", "https://nssdc.gsfc.nasa.gov/planetary/lunar/apollo_lrv.html"],
+    ["Photojournal PIA00530: Frost on Utopia Planitia", "https://photojournal.jpl.nasa.gov/catalog/PIA00530"],
+    ["JPL: Sojourner, Barnacle Bill, & Yogi", "https://www.jpl.nasa.gov/images/pia00660-sojourner-barnacle-bill-yogi"],
+    ["NASA/JPL: Perseverance sets off-world distance record", "https://science.nasa.gov/blogs/perseverance-mars-rover/2026/10/12/nasas-perseverance-sets-off-world-record-for-total-distance-driven/"]
+  ];
+  const normLabel = t => (t || '').toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[\u201c\u201d]/g, '"').replace(/\s+/g, ' ').trim();
+  const LINKS_BY_LABEL = {};
+  LINK_TABLE.forEach(([label, url]) => { LINKS_BY_LABEL[normLabel(label)] = url; });
+  const unmatchedLabels = new Set();
+
+  // one link cell -> list of {label, url}; a cell may hold several entries separated by ";"
+  function linksFromCell(cell) {
+    const out = [];
+    (cell || '').split(';').forEach(part => {
+      part = part.trim(); if (!part) return;
+      let label = part, url = '';
+      const bar = part.indexOf('|');
+      if (bar > -1) { label = part.slice(0, bar).trim(); url = part.slice(bar + 1).trim(); }
+      else if (/^https?:\/\//i.test(part)) { url = part; label = ''; }
+      else url = LINKS_BY_LABEL[normLabel(part)] || '';
+      if (!/^https?:\/\//i.test(url)) {
+        if (!unmatchedLabels.has(part)) { unmatchedLabels.add(part); console.warn('Link label has no address (add it to LINK_TABLE):', part); }
+        return;
+      }
+      out.push({ label, url });
+    });
+    return out;
+  }
+
+  // Columns are found by their HEADER words, so the column order in the spreadsheet does not matter.
+  // If a file has no header row, this order is assumed (the planning spreadsheet's order).
+  const DEFAULT_COLS = { id:0, name:1, location:2, planet:3, date:6, message:8, link1:10, link2:11, image:-1, links:-1 };
+  function findColumns(head) {
+    const h = head.map(x => x.trim().toLowerCase());
+    const at = test => h.findIndex(test);
+    return {
+      id: at(x => x.startsWith('card id') || x === 'id'),
+      name: at(x => x.includes('signed') || x === 'name'),
+      location: at(x => x.includes('location')),
+      planet: at(x => x.includes('planet') || x.includes('body line')),
+      date: at(x => x.includes('date')),
+      message: at(x => x.includes('message')),
+      image: at(x => x === 'image' || x.startsWith('image url') || x.includes('sketch')),
+      link1: at(x => x.includes('link 1')),
+      link2: at(x => x.includes('link 2')),
+      links: at(x => x === 'links')
+    };
+  }
   function toCards(rows) {
-    return rows.map(r => ({
-      id: (r[0] || '').trim(), location: (r[1] || '').trim(), planet: (r[2] || '').trim(),
-      date: (r[3] || '').trim(), name: (r[4] || '').trim(), message: (r[5] || '').trim(), image: (r[6] || '').trim(), links: (r[7] || '').trim()
-    })).filter(c => /^\d/.test(c.id));          // rows whose id does not start with a number (like the header) are skipped
+    let cols = DEFAULT_COLS, body = rows;
+    if (rows.length && !/^\d/.test((rows[0][0] || '').trim())) {       // first row is a header: read it
+      cols = findColumns(rows[0]); body = rows.slice(1);
+      const missing = ['id', 'name', 'location', 'planet', 'date', 'message'].filter(k => cols[k] < 0);
+      if (missing.length) console.warn('postcards.csv: could not find these columns by header:', missing.join(', '));
+    }
+    const get = (r, k) => (cols[k] >= 0 ? (r[cols[k]] || '') : '').trim();
+    return body.map(r => ({
+      id: get(r, 'id'), name: get(r, 'name'), location: get(r, 'location'), planet: get(r, 'planet'),
+      date: get(r, 'date'), message: get(r, 'message'), image: get(r, 'image'),
+      links: [
+        ...linksFromCell(get(r, 'link1')).map(l => ({ ...l, kind: 'mission' })),
+        ...linksFromCell(get(r, 'link2')).map(l => ({ ...l, kind: 'images' })),
+        ...linksFromCell(get(r, 'links')).map(l => ({ ...l, kind: 'mission' }))
+      ]
+    })).filter(c => /^\d/.test(c.id));          // rows whose id does not start with a number are skipped
   }
   function parseId(id) {                          // "10203" -> world 1, machine 2, card 03; "1-2-3" and "123" still work
     if (/[-._ ]/.test(id)) { const p = id.split(/[-._ ]+/); return { world: p[0], machine: p[1] || '', n: p[2] || '' }; }
     if (id.length >= 5) return { world: id[0], machine: String(parseInt(id.slice(1, 3), 10)), n: id.slice(3) };
     return { world: id[0], machine: id[1] || '', n: id.slice(2) };
   }
+  // A second spreadsheet tab saved as links.csv (columns: Label, URL) is merged into the link table above.
+  // Labels in links.csv win over the built-in ones, so the spreadsheet can be the only place you edit links.
+  const LINKS_CSV_URLS = [
+    'links.csv',
+    'https://raw.githubusercontent.com/aagneyashrivastav/nasa3dmodels/main/links.csv'
+  ];
+  async function loadLinkTable() {
+    for (const url of LINKS_CSV_URLS) {
+      try {
+        const r = await fetch(url, { cache: 'no-cache' });
+        if (!r.ok) continue;
+        const rows = parseCSV((await r.text()).replace(/^\uFEFF/, ''));
+        if (!rows.length) continue;
+        let li = 0, ui = 1, start = 0;
+        const head = rows[0].map(x => x.trim().toLowerCase());
+        if (head.some(x => x.includes('label')) || head.some(x => x.includes('url') || x.includes('address'))) {
+          start = 1;
+          const l = head.findIndex(x => x.includes('label') || x.includes('name'));
+          const u = head.findIndex(x => x.includes('url') || x.includes('address') || x === 'link');
+          if (l > -1) li = l; if (u > -1) ui = u;
+        }
+        rows.slice(start).forEach(row => {
+          const label = (row[li] || '').trim(), url2 = (row[ui] || '').trim();
+          if (label && /^https?:\/\//i.test(url2)) LINKS_BY_LABEL[normLabel(label)] = url2;
+        });
+        return;
+      } catch (e) { /* no links.csv: the built-in table is used */ }
+    }
+  }
   let CARDS = null;
   async function loadCards() {
+    await loadLinkTable();
     for (const url of CSV_URLS) {
       try {
         const r = await fetch(url, { cache: 'no-cache' });
@@ -417,15 +581,21 @@
   loadCards().then(c => { CARDS = c; });
 
   // ---------- postcards: choosing a card ----------
-  const shown = {};                               // per world: cards already shown this visit
+  // Each world deals from a freshly shuffled deck: every card comes up once before any repeats,
+  // and the first card of a new deck is never the same as the last one you just saw.
+  const decks = {}, lastDealt = {};
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
   function pickCard(world) {
     const stack = CARDS.filter(c => parseId(c.id).world === WORLD_CODES[world]);
     if (!stack.length) return null;
-    let pool = stack.filter(c => !(shown[world] || []).includes(c.id));
-    if (!pool.length) { shown[world] = []; pool = stack; }       // every card seen: start over
-    const card = pool[Math.floor(Math.random() * pool.length)];
-    (shown[world] = shown[world] || []).push(card.id);
-    return card;
+    if (!decks[world] || !decks[world].length) {
+      const deck = shuffle(stack.map(c => c.id));
+      if (deck.length > 1 && deck[0] === lastDealt[world]) { const j = 1 + Math.floor(Math.random() * (deck.length - 1)); [deck[0], deck[j]] = [deck[j], deck[0]]; }
+      decks[world] = deck;
+    }
+    const id = decks[world].shift();
+    lastDealt[world] = id;
+    return stack.find(c => c.id === id) || null;
   }
 
   // ---------- postcards: showing the popup ----------
@@ -444,33 +614,43 @@
     $('postcard').style.setProperty('--fs', base + 'px');
     fit($('pc-msg'), base, 8);
     fit($('pc-name'), base, 8);
+    ['pc-location', 'pc-planet', 'pc-date'].forEach(id => fit($(id), base, 8));
   }
-  // "Look into it" links. CSV cell format:  Label|URL; Label|URL   (label optional)
-  function renderLinks(raw) {
+  // "Look into it" buttons under the postcard. Link 1 = mission page, Link 2 = images / data.
+  const LINK_KINDS = { mission: { icon: '\u{1F6F0}\uFE0F', text: 'Mission page' }, images: { icon: '\u{1F5BC}\uFE0F', text: 'Images & data' } };
+  function renderLinks(links) {
     const box = $('pc-links');
     box.textContent = '';
-    const links = [];
-    (raw || '').split(';').forEach(part => {
-      part = part.trim(); if (!part) return;
-      const i = part.indexOf('|');
-      let label = i > -1 ? part.slice(0, i).trim() : '';
-      const url = (i > -1 ? part.slice(i + 1) : part).trim();
-      if (!/^https?:\/\//i.test(url)) return;
-      if (!label) { try { label = new URL(url).hostname.replace(/^www\./, ''); } catch (e) { label = 'More info'; } }
-      links.push({ label, url });
-    });
-    if (!links.length) { box.hidden = true; return; }
+    if (!links || !links.length) { box.hidden = true; return; }
+    const perKind = {};
+    links.forEach(l => { perKind[l.kind] = (perKind[l.kind] || 0) + 1; });
     const lead = document.createElement('span');
     lead.className = 'pc-links-label'; lead.textContent = 'Look into it:';
     box.append(lead);
     links.forEach(l => {
+      const k = LINK_KINDS[l.kind] || LINK_KINDS.mission;
       const a = document.createElement('a');
-      a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = l.label;
+      a.href = l.url; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      const name = (perKind[l.kind] > 1 && l.label) ? l.label : k.text;     // two links of one kind: show their own names
+      a.textContent = k.icon + ' ' + name;
+      a.title = l.label || name;
+      a.setAttribute('aria-label', name + (l.label && l.label !== name ? ': ' + l.label : '') + ' (opens in a new tab)');
       box.append(a);
     });
     box.hidden = false;
   }
-  function showCard(c) {
+  let currentCard = null;
+  function updateNav() {
+    const key = currentCard ? machineKey(currentCard) : '';
+    const list = (key && seen[key]) || [];
+    const many = list.length > 1;
+    $('pc-prev').hidden = $('pc-next').hidden = !many;
+    const info = $('pc-count');
+    info.hidden = !many;
+    if (many) info.textContent = currentCard.name + ' \u00B7 ' + (list.indexOf(currentCard.id) + 1) + ' of ' + list.length + ' found \u00B7 use the arrows to flip';
+  }
+  function showCard(c, dir) {                      // dir: 1 = next, -1 = previous (only used for the slide-in)
+    currentCard = c;
     const p = parseId(c.id);
     $('pc-location').textContent = c.location;
     $('pc-planet').textContent = c.planet;
@@ -484,10 +664,23 @@
     img.alt = 'Hand-drawn sketch of ' + c.name;
     img.onerror = () => { img.style.display = 'none'; pic.classList.add('empty'); pic.append('sketch coming soon'); };
     img.src = c.image || (IMAGE_DIR + p.world + '-' + p.machine + '.png');
-    lastFocus = document.activeElement;
+    const wasOpen = overlay.classList.contains('open');
+    if (!wasOpen) lastFocus = document.activeElement;
     overlay.classList.add('open'); overlay.setAttribute('aria-hidden', 'false');
+    const card = $('postcard');
+    card.classList.remove('from-left', 'from-right');
+    if (dir) { void card.offsetWidth; card.classList.add(dir > 0 ? 'from-right' : 'from-left'); }
+    updateNav();
     fitAll();
-    $('pc-done').focus();
+    if (!wasOpen) $('pc-done').focus();             // when flipping, focus stays on the arrow
+  }
+  function flipCard(step) {                         // next / previous postcard from the same machine
+    if (!currentCard) return;
+    const list = seen[machineKey(currentCard)] || [];
+    if (list.length < 2) return;
+    const i = list.indexOf(currentCard.id);
+    const card = CARDS.find(x => x.id === list[(i + step + list.length) % list.length]);
+    if (card) showCard(card, step);
   }
   function closeCard() {
     overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true');
@@ -497,7 +690,6 @@
   const WORLD_TITLES = { '1': 'The Moon', '2': 'Mars', '3': 'Ceres', '4': 'Eros', '5': 'Outer Solar System', '6': "Earth's Orbit" };
   const seen = {};     // machine key -> card ids received (sorted)
   const tiles = {};    // machine key -> its tile parts
-  const cycle = {};    // machine key -> which seen card a name-click shows next
 
   Object.keys(WORLD_TITLES).forEach(w => {      // one hidden column per world, in order
     const col = document.createElement('section');
@@ -523,11 +715,10 @@
     const pips = [];
     for (let i = 0; i < total; i++) { const d = document.createElement('span'); d.className = 'tr-pip'; pips.push(d); row.append(d); }
     const count = document.createElement('span'); count.className = 'tr-count'; row.append(count);
-    tile.append(nm, row);
-    tile.addEventListener('click', () => {         // click the name: re-read a card you already have
-      const list = seen[key];
-      const i = cycle[key] = ((cycle[key] ?? -1) + 1) % list.length;
-      const card = CARDS.find(x => x.id === list[i]);
+    const hint = document.createElement('span'); hint.className = 'tr-hint'; hint.textContent = 'Read again \u203A';
+    tile.append(nm, row, hint);
+    tile.addEventListener('click', () => {         // click the name: reopen your first postcard from this machine, then flip with the arrows
+      const card = CARDS.find(x => x.id === (seen[key] || [])[0]);
       if (card) showCard(card);
     });
     const col = $('tr-col-' + world);
@@ -545,7 +736,8 @@
     t.pips.forEach((pip, i) => pip.classList.toggle('on', i < list.length));
     t.count.textContent = list.length + '/' + total;
     t.tile.classList.toggle('done', list.length >= total);
-    t.tile.setAttribute('aria-label', t.name + ': ' + list.length + ' of ' + total + ' postcards found. Select to read again.');
+    t.tile.setAttribute('aria-label', t.name + ': ' + list.length + ' of ' + total + ' postcards found. Select to read them again.');
+    t.tile.title = 'Read your ' + t.name + ' postcards again';
     $('tracker').classList.add('show'); document.body.classList.add('has-tracker');
     updateTotals();
   }
@@ -563,14 +755,18 @@
       $('hint').textContent = CARDS.length ? 'No postcards for this world yet.' : 'Could not load the postcards file (postcards.csv).';
       return;
     }
+    markSeen(card);          // first, so the arrows know about this card
     showCard(card);
-    markSeen(card);
   }
   $('pc-done').addEventListener('click', closeCard);
+  $('pc-prev').addEventListener('click', () => flipCard(-1));
+  $('pc-next').addEventListener('click', () => flipCard(1));
   overlay.addEventListener('click', e => { if (e.target === overlay) closeCard(); });
   document.addEventListener('keydown', e => {
     if (!overlay.classList.contains('open')) return;
     if (e.key === 'Escape') closeCard();
+    if (e.key === 'ArrowLeft') flipCard(-1);
+    if (e.key === 'ArrowRight') flipCard(1);
     if (e.key === 'Tab') {
       const f = [...overlay.querySelectorAll('a[href], button')].filter(x => !x.closest('[hidden]'));
       if (!f.length) return;
